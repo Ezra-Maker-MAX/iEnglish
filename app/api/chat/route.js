@@ -8,15 +8,31 @@ import {
   trackVocab,
 } from '@/lib/scenario';
 import { chat } from '@/lib/llm';
+import { getSession, isAuthEnabled } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 /**
  * 文字对话接口
- * 第一期第一步：纯文字验证教学提示词质量，不需要任何语音服务
+ *
+ * 第一层保护：启用了访问口令时，要求已登录。
+ * 理由：本接口背后是付费 API Key，公网开放等于给别人送额度。
  */
+async function requireAccess(req) {
+  if (!(await isAuthEnabled())) return null;
+  const sess = getSession(req);
+  if (sess) return null;
+  return NextResponse.json(
+    { error: '未登录。请先访问 /admin 输入访问口令。' },
+    { status: 401 }
+  );
+}
+
 export async function POST(req) {
+  const denied = await requireAccess(req);
+  if (denied) return denied;
+
   try {
     const {
       scenarioSlug,
@@ -28,6 +44,9 @@ export async function POST(req) {
 
     if (!userText?.trim()) {
       return NextResponse.json({ error: 'userText 不能为空' }, { status: 400 });
+    }
+    if (userText.length > 2000) {
+      return NextResponse.json({ error: '单次输入过长（上限 2000 字符）' }, { status: 400 });
     }
 
     const scenario = await getScenario(scenarioSlug);
@@ -62,6 +81,9 @@ export async function POST(req) {
     });
   } catch (err) {
     console.error('[api/chat]', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const msg = err.message || '未知错误';
+    // 配置类错误给 400 更合适，方便前端区分
+    const status = msg.includes('API Key') ? 400 : 500;
+    return NextResponse.json({ error: msg }, { status });
   }
 }

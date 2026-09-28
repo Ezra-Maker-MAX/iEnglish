@@ -5,11 +5,18 @@ node_modules/
 
 # 构建产物（含本机构建绕行目录）
 .next/
+.nextdev*/
 buildout*/
 devout/
 out/
 build/
 dist/
+
+# 验收截图（体积大且为本地临时产物）
+shots/
+
+# 停用的旧文件（Next 16 起 middleware 更名为 proxy）
+middleware.js.bak
 
 # 环境变量（含密钥，绝不提交）
 .env

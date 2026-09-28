@@ -80,6 +80,12 @@ export default function PracticeClient({ scenarios }) {
         <p className="tip">
           建议：先用文字对话验证教学效果，再接入语音。
         </p>
+
+        <p className="tip">
+          <a className="adminlink" href="/admin">⚙ 配置中心</a>
+          <span className="dot">·</span>
+          <a className="adminlink" href="/dashboard">📊 学习看板</a>
+        </p>
       </div>
     );
   }
