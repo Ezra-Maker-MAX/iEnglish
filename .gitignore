@@ -43,3 +43,9 @@ Thumbs.db
 # TypeScript
 next-env.d.ts
 *.tsbuildinfo
+
+# API 推送通道的临时清单文件
+.push-sha.txt
+.push-manifest.txt
+.git-tmp-out
+.git-tmp-err
