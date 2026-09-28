@@ -1,0 +1,157 @@
+/* ============ 家长端看板 ============ */
+.dash {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+.dash h1 {
+  font-size: 25px;
+  letter-spacing: -0.3px;
+}
+.dash .sub {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 6px 0 22px;
+}
+.dash section {
+  margin-top: 32px;
+}
+.dash h2 {
+  font-size: 16px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.empty {
+  color: var(--muted);
+  font-size: 14px;
+  padding: 14px 0;
+}
+.empty a,
+.foot a {
+  color: var(--brand);
+}
+
+/* KPI */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+.kpi {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.knum {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--brand);
+  line-height: 1.1;
+}
+.klab {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* 表格 */
+.dash table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.dash th,
+.dash td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.dash th {
+  background: #fafbff;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.dash tr:last-child td {
+  border-bottom: none;
+}
+
+/* 生词 */
+.words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.word {
+  background: var(--brand-soft);
+  color: var(--brand);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.word em {
+  background: var(--brand);
+  color: #fff;
+  border-radius: 999px;
+  font-style: normal;
+  font-size: 10px;
+  min-width: 17px;
+  height: 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+/* 对话日志 */
+.log {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.line {
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.line:nth-child(odd) {
+  background: #fafbff;
+}
+.lwho {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 34px;
+  padding-top: 2px;
+}
+.line.child .ltxt {
+  color: var(--text);
+}
+.line.ai .ltxt {
+  color: #0b7a5c;
+}
+.ltxt {
+  word-break: break-word;
+}
+
+.foot {
+  margin-top: 34px;
+  font-size: 14px;
+}
