@@ -453,9 +453,13 @@ export default function PracticeClient({ scenarios }) {
 
         {loading && (
           <div className="bubble ai">
-            <span className="avatar-sm">
-              {detail?.characterName ? detail.characterName[0] : 'AI'}
-            </span>
+            {detail?.characterAvatar ? (
+              <img className="avatar-sm img" src={detail.characterAvatar} alt={detail.characterName || 'AI'} />
+            ) : (
+              <span className="avatar-sm">
+                {detail?.characterName ? detail.characterName[0] : 'AI'}
+              </span>
+            )}
             <span className="txt typing">
               <span className="dots">
                 <i /><i /><i />
