@@ -188,12 +188,10 @@ vercel
 
 在 Vercel 新建项目 → 导入 `Ezra-Maker-MAX/iEnglish` 仓库 → 框架自动识别为 Next.js。
 
-> ★ **推送代码时本机必须 unset 代理**，否则 `git push` 会**静默失败**
-> （exit 0 但远端不动）：
-> ```bash
-> unset http_proxy https_proxy ALL_PROXY HTTP_PROXY HTTPS_PROXY
-> git push origin main
-> ```
+> ★ **推送直接执行 `git push origin main` 即可**（git 自带 credential manager 会处理代理）。
+> **不要写成 `unset http_proxy ...; git push` 的复合形式** —— 本机 safe-delete hook
+> 会对这个组合报 SIGTERM（exit 1、远端不动，看起来像失败）。
+> 推完核对：`git rev-parse HEAD` 与 `git rev-parse origin/main` 两行应相同。
 
 ### 必须配置的环境变量
 
