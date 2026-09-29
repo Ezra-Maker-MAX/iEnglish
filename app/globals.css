@@ -322,6 +322,47 @@ body {
   white-space: nowrap;
 }
 
+/* 开场短视频 —— 进入场景时的一小段仪式感，可关闭 */
+.introvideo {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  background: #f1f3fb;
+  border: 1px solid #dfe2f8;
+  animation: iv-in 0.45s ease;
+}
+@keyframes iv-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.introvideo video {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+  object-fit: cover;
+}
+.iv-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(17, 24, 39, 0.5);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.iv-close:hover {
+  background: rgba(17, 24, 39, 0.72);
+}
+
 /* 角色卡 */
 .charcard {
   display: flex;
