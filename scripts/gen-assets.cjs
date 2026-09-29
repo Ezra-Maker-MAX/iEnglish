@@ -29,14 +29,64 @@ const AVATARS = [
 over light blue shirt and a red cap, big warm smile, round friendly eyes, slightly goofy
 expression, waving hello with one hand. Full body, square composition. ${STYLE}`,
   },
+  {
+    file: 'avatar-nico.png',
+    prompt: `A cheerful young male shop assistant, wearing a green apron over a striped shirt
+and a small paper hat, big excited grin with raised eyebrows, holding up a small gift box
+in one hand, slightly over-enthusiastic expression. Full body, square composition. ${STYLE}`,
+  },
+  {
+    file: 'avatar-momo.png',
+    prompt: `A warm friendly young waitress, wearing a cream blouse with a small black bow tie
+and a brown apron, hair in a neat bun, holding a small notepad and a pencil, gentle happy
+smile, a pencil tucked behind one ear. Full body, square composition. ${STYLE}`,
+  },
+  {
+    file: 'avatar-ivy.png',
+    prompt: `A confident friendly young female event host, wearing a mint green blazer over a
+white top, short bob haircut, holding a microphone in one hand and gesturing warmly with the
+other, encouraging smile. Full body, square composition. ${STYLE}`,
+  },
+  {
+    file: 'avatar-sam.png',
+    prompt: `A friendly approachable teenage boy club president, wearing a navy school-uniform
+blazer with a small camera hanging from a strap around his neck, short messy hair, relaxed
+easygoing smile, one hand raised in a casual wave. Full body, square composition. ${STYLE}`,
+  },
 ];
 
-/** 关卡图标：替换 emoji，统一视觉语言 */
+/** 关卡图标：替换 emoji，统一视觉语言
+ *  每个场景 4 个，文件名与 Turso missions[].icon_image 严格对应 */
 const ICONS = [
+  // ── 机场值机（airport-checkin）──────────────────────────
   { file: 'icon-boarding-pass.png', prompt: `A simple boarding pass ticket icon, rectangular with a torn stub corner, small airplane symbol printed on it, teal and white colors. Single object, square composition. ${STYLE}` },
   { file: 'icon-luggage.png', prompt: `A chubby rolling suitcase icon, orange colored with visible zipper and handle, small wheels at bottom. Single object, square composition. ${STYLE}` },
   { file: 'icon-security.png', prompt: `A friendly security checkpoint icon: a metal detector archway frame with a small green checkmark badge on it, blue and white colors. Single object, square composition. ${STYLE}` },
   { file: 'icon-board-plane.png', prompt: `A small passenger airplane taking off at a gentle upward angle, body white with blue stripe and orange tail fin. Single object, square composition. ${STYLE}` },
+
+  // ── 商店购物比价（shop-compare）────────────────────────
+  { file: 'icon-shop-want.png', prompt: `A cute shopping basket icon with a small glowing star above it, warm yellow and brown colors, symbolizing "I want to buy this". Single object, square composition. ${STYLE}` },
+  { file: 'icon-shop-price.png', prompt: `A price tag icon with a small coin beside it, red tag with a string loop, gold coin, symbolizing asking the price. Single object, square composition. ${STYLE}` },
+  { file: 'icon-shop-compare.png', prompt: `A balance scale icon with a small price tag on each side, one side slightly lower, teal and cream colors, symbolizing comparing two items. Single object, square composition. ${STYLE}` },
+  { file: 'icon-shop-buy.png', prompt: `A paper shopping bag icon with a small heart on it and a checkmark badge, coral pink colors, symbolizing making a purchase. Single object, square composition. ${STYLE}` },
+
+  // ── 西餐厅点餐结账（restaurant-order）──────────────────
+  { file: 'icon-rest-drink.png', prompt: `A tall glass of juice with a straw and ice cubes, orange juice color, cheerful and simple, symbolizing ordering a drink. Single object, square composition. ${STYLE}` },
+  { file: 'icon-rest-main.png', prompt: `A plate of pasta with a fork and a small steam swirl above, warm yellow noodles and red sauce, symbolizing ordering a main dish. Single object, square composition. ${STYLE}` },
+  { file: 'icon-rest-pref.png', prompt: `A cute red chili pepper icon with a small happy face and a green leaf, symbolizing spicy taste preference. Single object, square composition. ${STYLE}` },
+  { file: 'icon-rest-bill.png', prompt: `A restaurant bill receipt icon with a small credit card behind it, white paper with zigzag bottom edge, blue card, symbolizing paying the bill. Single object, square composition. ${STYLE}` },
+
+  // ── 即兴演讲（impromptu-speech）────────────────────────
+  { file: 'icon-speech-topic.png', prompt: `A cute dice icon with question mark pips, purple and white colors, symbolizing drawing a random topic. Single object, square composition. ${STYLE}` },
+  { file: 'icon-speech-opinion.png', prompt: `A glowing light bulb icon with a small speech bubble beside it, warm yellow glow, symbolizing stating an opinion. Single object, square composition. ${STYLE}` },
+  { file: 'icon-speech-reason.png', prompt: `A single jigsaw puzzle piece icon with a small connecting arrow, teal and cream colors, symbolizing giving a reason or example. Single object, square composition. ${STYLE}` },
+  { file: 'icon-speech-question.png', prompt: `A big friendly question mark icon with a small speech bubble, blue and white colors, symbolizing answering a question. Single object, square composition. ${STYLE}` },
+
+  // ── 社团面试（club-interview）──────────────────────────
+  { file: 'icon-club-intro.png', prompt: `A friendly waving hand icon with a small name badge beside it, warm peach colors, symbolizing introducing yourself. Single object, square composition. ${STYLE}` },
+  { file: 'icon-club-why.png', prompt: `A cute heart icon with a small sparkle and an arrow pointing into it, pink and coral colors, symbolizing why you want to join. Single object, square composition. ${STYLE}` },
+  { file: 'icon-club-strength.png', prompt: `A shiny gold star icon with small sparkles around it and a small badge ribbon below, symbolizing your personal strength. Single object, square composition. ${STYLE}` },
+  { file: 'icon-club-ask.png', prompt: `Two overlapping speech bubbles icon, one asking and one replying, with a small handshake symbol between them, mint green and cream colors, symbolizing asking a question back. Single object, square composition. ${STYLE}` },
 ];
 
 async function generate(item) {
@@ -74,21 +124,40 @@ async function generate(item) {
       const j = JSON.parse(body);
       const d = j.data?.[0] ?? {};
       fs.mkdirSync(ROOT, { recursive: true });
+
+      /** 校验拿到的确实是图片 —— 上游偶发 503 时可能返回一段错误文本，
+       *  若直接落盘会得到一个 19 字节的"文件"，且因为 existsSync 为真
+       *  而被后续所有运行跳过，成为幽灵资源。 */
+      const looksLikeImage = (buf) =>
+        buf.length > 1024 &&
+        // PNG: 89 50 4E 47 | JPEG: FF D8 FF
+        ((buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) ||
+          (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff));
+
+      let buf = null;
       if (d.url) {
-        const img = await fetch(d.url);
-        const buf = Buffer.from(await img.arrayBuffer());
+        buf = Buffer.from(await (await fetch(d.url)).arrayBuffer());
+      } else if (d.b64_json) {
+        buf = Buffer.from(d.b64_json, 'base64');
+      }
+
+      if (buf && looksLikeImage(buf)) {
         fs.writeFileSync(out, buf);
         console.log(`  ✓ ${item.file} (${(buf.length / 1024).toFixed(0)} KB)`);
         return { file: item.file, ok: true, kb: Math.round(buf.length / 1024) };
       }
-      if (d.b64_json) {
-        const buf = Buffer.from(d.b64_json, 'base64');
-        fs.writeFileSync(out, buf);
-        console.log(`  ✓ ${item.file} (${(buf.length / 1024).toFixed(0)} KB, base64)`);
-        return { file: item.file, ok: true, kb: Math.round(buf.length / 1024) };
+
+      // 内容不是图片 —— 当作可重试的失败处理，不要落盘
+      const preview = buf ? buf.slice(0, 80).toString('utf8').replace(/\s+/g, ' ') : '(无数据)';
+      console.log(
+        `  ${item.file} 第 ${i} 次返回的不是图片 (${buf ? buf.length + ' 字节' : '空'}): ${preview}`
+      );
+      if (i < 5) {
+        const wait = Math.min(1500 * 2 ** (i - 1), 15000);
+        await new Promise((s) => setTimeout(s, wait));
+        continue;
       }
-      console.log(`  ${item.file} 响应结构未知: ${body.slice(0, 200)}`);
-      return { file: item.file, ok: false, err: 'unknown shape' };
+      return { file: item.file, ok: false, err: 'not an image' };
     }
 
     if (RETRYABLE.has(res.status)) {

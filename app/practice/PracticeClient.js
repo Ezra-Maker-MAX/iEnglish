@@ -55,8 +55,6 @@ export default function PracticeClient({ scenarios }) {
   const [praise, setPraise] = useState(null);
   const [eventBanner, setEventBanner] = useState(null);
   const [finished, setFinished] = useState(false);
-  /** 开场视频是否已关闭（用户手动关，或文件加载失败） */
-  const [videoClosed, setVideoClosed] = useState(false);
   /** 等待时长计时器 —— 推理类模型响应可能长达 20 秒，需要给孩子持续反馈 */
   const [elapsed, setElapsed] = useState(0);
 
@@ -98,7 +96,6 @@ export default function PracticeClient({ scenarios }) {
     setPraise(null);
     setEventBanner(null);
     setFinished(false);
-    setVideoClosed(false);
     setError(null);
     setLoadingDetail(true);
 
@@ -356,23 +353,6 @@ export default function PracticeClient({ scenarios }) {
           </span>
         </div>
       </header>
-
-      {/* 开场短视频 —— 仅在场景配置了 introVideo 且用户未关闭时显示 */}
-      {detail?.introVideo && !videoClosed && (
-        <div className="introvideo">
-          <video
-            src={detail.introVideo}
-            autoPlay
-            muted
-            playsInline
-            loop
-            onError={() => setVideoClosed(true)}
-          />
-          <button className="iv-close" onClick={() => setVideoClosed(true)} aria-label="关闭">
-            ✕
-          </button>
-        </div>
-      )}
 
       {/* 角色卡 */}
       <div className="charcard">
