@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { streamChat } from '@/lib/sse';
 
 /**
  * 孩子端闯关界面
@@ -44,6 +45,8 @@ export default function PracticeClient({ scenarios }) {
   const [history, setHistory] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  /** 流式输出中 —— 气泡末尾显示光标，让"正在打字"这件事可见 */
+  const [streaming, setStreaming] = useState(false);
   const [sessionId, setSessionId] = useState(null);
   const [turn, setTurn] = useState(0);
   const [error, setError] = useState(null);
@@ -165,31 +168,44 @@ export default function PracticeClient({ scenarios }) {
     setInput('');
     setError(null);
     setLoading(true);
+    setStreaming(false);
     setEventBanner(null);
 
     const nextHistory = [...history, { role: 'child', text }];
     setHistory(nextHistory);
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      // ---- 流式消费 ----
+      // 首字到达就立刻渲染，孩子看到的是「TA 正在打给我看」，
+      // 而不是对着三个点干等 5-20 秒。
+      const { meta } = await streamChat(
+        {
           scenarioSlug: selected.slug,
           sessionId,
           history: history.filter((m) => !m.opening),
           userText: text,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `请求失败 ${res.status}`);
+        },
+        {
+          onDelta: (chunk, full) => {
+            setStreaming(true);
+            setLoading(false); // 首个字到达 → 撤掉「正在想」气泡，换成真实文字
+            setHistory([...nextHistory, { role: 'ai', text: full, streaming: true }]);
+          },
+          onError: (msg) => setError(msg),
+        }
+      );
 
-      setSessionId(data.sessionId);
-      setTurn(data.turn ?? turn + 1);
-      setHistory([...nextHistory, { role: 'ai', text: data.reply }]);
+      // 收尾：把流式气泡固化为普通气泡
+      const finalText = meta?.reply || '';
+      if (finalText) {
+        setHistory([...nextHistory, { role: 'ai', text: finalText }]);
+      }
 
-      if (detail?.gamified) {
-        const nowTurn = data.turn ?? turn + 1;
+      setSessionId(meta?.sessionId ?? sessionId);
+
+      if (detail?.gamified && meta) {
+        const nowTurn = meta.turn ?? turn + 1;
+        setTurn(nowTurn);
 
         // 关卡判定：由 missions[].at_turn 驱动，进度条严格镜像剧情
         const unlocked = diffMissions(text, nowTurn);
@@ -232,6 +248,7 @@ export default function PracticeClient({ scenarios }) {
       setHistory(history);
     } finally {
       setLoading(false);
+      setStreaming(false);
     }
   }
 
@@ -288,7 +305,9 @@ export default function PracticeClient({ scenarios }) {
           <div className="finish-missions">
             {missions.map((m) => (
               <div key={m.id} className="fm done">
-                <span className="fm-icon">{m.icon}</span>
+                <span className="fm-icon">
+                  {m.icon_image ? <img src={m.icon_image} alt="" /> : m.icon}
+                </span>
                 <span className="fm-label">{m.label}</span>
                 <span className="fm-check">✓</span>
               </div>
@@ -338,7 +357,13 @@ export default function PracticeClient({ scenarios }) {
       {/* 角色卡 */}
       <div className="charcard">
         <div className="avatar">
-          {detail?.characterName ? detail.characterName[0] : '💬'}
+          {detail?.characterAvatar ? (
+            <img src={detail.characterAvatar} alt={detail.characterName || 'AI'} />
+          ) : detail?.characterName ? (
+            detail.characterName[0]
+          ) : (
+            '💬'
+          )}
         </div>
         <div className="charinfo">
           <div className="charname">
@@ -359,7 +384,15 @@ export default function PracticeClient({ scenarios }) {
             const active = currentMission?.id === m.id;
             return (
               <div key={m.id} className={`mission ${done ? 'done' : ''} ${active ? 'active' : ''}`}>
-                <span className="m-icon">{done ? '✅' : m.icon}</span>
+                <span className="m-icon">
+                  {done ? (
+                    '✅'
+                  ) : m.icon_image ? (
+                    <img src={m.icon_image} alt="" />
+                  ) : (
+                    m.icon
+                  )}
+                </span>
                 <span className="m-label">
                   {m.label}
                   {m.label_en && <em>{m.label_en}</em>}
@@ -383,12 +416,18 @@ export default function PracticeClient({ scenarios }) {
       <div className="chat">
         {history.map((m, i) => (
           <div key={i} className={`bubble ${m.role}`}>
-            {m.role === 'ai' && (
-              <span className="avatar-sm">
-                {detail?.characterName ? detail.characterName[0] : 'AI'}
-              </span>
-            )}
-            <span className="txt">{m.text}</span>
+            {m.role === 'ai' &&
+              (detail?.characterAvatar ? (
+                <img className="avatar-sm img" src={detail.characterAvatar} alt={detail.characterName || 'AI'} />
+              ) : (
+                <span className="avatar-sm">
+                  {detail?.characterName ? detail.characterName[0] : 'AI'}
+                </span>
+              ))}
+            <span className="txt">
+              {m.text}
+              {m.streaming && <span className="caret" />}
+            </span>
           </div>
         ))}
 
@@ -436,7 +475,12 @@ export default function PracticeClient({ scenarios }) {
           <div className="nowgoal">
             <span className="ng-label">现在要做</span>
             <span className="ng-text">
-              {currentMission.icon} {currentMission.label}
+              {currentMission.icon_image ? (
+                <img className="ng-icon" src={currentMission.icon_image} alt="" />
+              ) : (
+                currentMission.icon
+              )}{' '}
+              {currentMission.label}
             </span>
           </div>
         )}

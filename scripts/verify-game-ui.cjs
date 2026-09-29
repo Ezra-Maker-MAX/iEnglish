@@ -86,23 +86,67 @@ const OUT = { steps: [], errors: [] };
   const opening = await page.locator('.bubble.ai .txt').first().textContent();
   step(5, `开场白: ${opening}`);
 
+  // ---------- 2b. 美术资源渲染 ----------
+  // 立绘/图标是 <img>，浏览器会真的去请求 —— 用 naturalWidth 判断是否加载成功，
+  // 比只看 DOM 存在严格得多（404 的 img 仍然存在于 DOM 里）。
+  async function imgOk(locator) {
+    const n = await locator.count();
+    if (n === 0) return { n: 0, loaded: 0, src: null };
+    const src = await locator.first().getAttribute('src');
+    const loaded = await locator.first().evaluate((el) => el.complete && el.naturalWidth > 0);
+    return { n, loaded: loaded ? 1 : 0, src };
+  }
+
+  const avatarImg = await imgOk(page.locator('.charcard .avatar img'));
+  const iconImgs = await imgOk(page.locator('.mission .m-icon img'));
+  const iconCount = await page.locator('.mission .m-icon img').count();
+  const iconLoaded = await page.locator('.mission .m-icon img').evaluateAll((els) =>
+    els.filter((e) => e.complete && e.naturalWidth > 0).length
+  );
+  step(
+    5.1,
+    `角色立绘 ${avatarImg.loaded ? '✓ 已加载' : '✗ 未加载'} (${avatarImg.src}) | ` +
+      `关卡图标 ${iconLoaded}/${iconCount} 已加载`
+  );
+
+  const bubbleAvatar = await page.locator('.bubble.ai .avatar-sm.img').count();
+  step(5.2, `对话气泡立绘: ${bubbleAvatar} 个`);
+
   // ---------- 3. 推进两轮，验证进度变化 ----------
-  // 等待策略：轮询等 loading 消失，而不是死等固定秒数
-  // （推理类模型响应 7-28 秒波动很大，固定等待必然误判）
-  async function waitReply(timeoutMs = 40000) {
+  // 等待策略：轮询等「发送中」状态消失，而不是死等固定秒数。
+  //
+  // 改成流式后这里有两点变化（踩坑记录）：
+  //   1) 首个字到达即撤掉 .typing 气泡，所以不能再只盯 .typing；
+  //   2) 流式收尾期间 .caret 光标还在，用它判断「还在写」。
+  // 判据 = 没有 .typing 且 没有 .caret 且 发送按钮恢复可用。
+  async function waitReply(timeoutMs = 45000) {
     const t0 = Date.now();
     while (Date.now() - t0 < timeoutMs) {
       const typing = await page.locator('.typing').count();
-      if (typing === 0) {
+      const caret = await page.locator('.caret').count();
+      const busy = await page.locator('button.send').isDisabled().catch(() => false);
+      if (typing === 0 && caret === 0 && !busy) {
         await page.waitForTimeout(400);
         return true;
       }
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(400);
     }
     return false;
   }
 
+  // ---------- 2d. 流式首字延迟（本轮改造的核心指标） ----------
+  // 孩子要等多久才看到第一个字 —— 改造前是「等完整回复」，3.5-8.7 秒。
+  const t0Stream = Date.now();
   await page.locator('.qchip', { hasText: 'Yes!' }).first().click();
+  let ttft = null;
+  for (let i = 0; i < 300; i++) {
+    if ((await page.locator('.bubble.ai .caret').count()) > 0) {
+      ttft = Date.now() - t0Stream;
+      break;
+    }
+    await page.waitForTimeout(100);
+  }
+  step(5.3, `流式首字延迟: ${ttft === null ? '✗ 未捕获到光标' : ttft + 'ms'}`);
   await waitReply();
   const prog1 = await page.locator('.prog-num').textContent();
   const done1 = await page.locator('.mission.done').count();
