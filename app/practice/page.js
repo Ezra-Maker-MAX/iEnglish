@@ -20,5 +20,13 @@ export default async function PracticePage() {
     );
   }
 
-  return <PracticeClient scenarios={scenarios} />;
+  // Server Component 的返回值需要可序列化 —— 显式挑字段，避免把 BigInt / undefined 带过去
+  const safe = scenarios.map((s) => ({
+    slug: String(s.slug),
+    title: String(s.title),
+    difficulty: Number(s.difficulty) || 1,
+    gamified: Boolean(s.gamified),
+  }));
+
+  return <PracticeClient scenarios={safe} />;
 }

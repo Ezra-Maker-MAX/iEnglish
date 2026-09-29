@@ -1,16 +1,21 @@
 import { NextResponse } from 'next/server';
-import { listScenarios, getScenario } from '@/lib/scenario';
+import { listScenarios, getScenario, toPublicScenario } from '@/lib/scenario';
 
 export const runtime = 'nodejs';
 
-/** 场景列表 / 单个场景详情 */
+/**
+ * 场景列表 / 单个场景详情
+ *
+ * 注意：这里用 toPublicScenario 做白名单裁剪 —— 只回传孩子端渲染需要的字段。
+ * system_prompt / stuck_hints / vocab_list 等服务端资产绝不外流。
+ */
 export async function GET(req) {
   try {
     const slug = new URL(req.url).searchParams.get('slug');
     if (slug) {
       const s = await getScenario(slug);
       if (!s) return NextResponse.json({ error: 'not found' }, { status: 404 });
-      return NextResponse.json(s);
+      return NextResponse.json(toPublicScenario(s));
     }
     return NextResponse.json({ scenarios: await listScenarios() });
   } catch (err) {
