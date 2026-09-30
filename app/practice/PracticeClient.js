@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { streamChat } from '@/lib/sse';
+import { useSpeech } from '@/lib/use-speech';
 
 /**
  * 孩子端闯关界面
@@ -60,9 +61,40 @@ export default function PracticeClient({ scenarios }) {
 
   const endRef = useRef(null);
 
+  /**
+   * 语音播放 —— 用场景绑定的角色音色
+   *
+   * 为什么不把 voice 提到组件外：每个场景音色不同，
+   * 而 useSpeech 内部按 voice 做缓存键，change 场景时要拿到新值。
+   */
+  const speech = useSpeech({
+    voice: detail?.characterVoice,
+    rate: detail?.voiceRate,
+    pitch: detail?.voicePitch,
+    scenarioSlug: selected?.slug,
+  });
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [history, loading, eventBanner]);
+
+  /**
+   * 通关播报 —— 结算页出现时念一次奖励称号。
+   *
+   * 为什么用 useEffect 而不是在 send() 里直接调：
+   *   setFinished(true) 之后组件会切到结算分支，此刻 speak 的 id 若沿用
+   *   对话气泡的 key 会立刻被卸载清掉。放在这里由 finished 驱动，
+   *   既保证只念一次（依赖数组），也不受重渲染影响。
+   *
+   * 依赖里刻意不放 speech —— useSpeech 每次渲染都返回新对象，
+   *   放进去会导致结算页疯狂重复朗读。
+   */
+  useEffect(() => {
+    if (!finished) return;
+    const line = detail?.rewardTitle || 'Mission Complete!';
+    speech.speak(line, 'finish');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finished]);
 
   // 等待计时 + 分档提示文案：让孩子知道"它在想"，而不是卡死了
   useEffect(() => {
@@ -97,6 +129,7 @@ export default function PracticeClient({ scenarios }) {
     setEventBanner(null);
     setFinished(false);
     setError(null);
+    speech.stop();
     setLoadingDetail(true);
 
     try {
@@ -108,6 +141,8 @@ export default function PracticeClient({ scenarios }) {
       // 开场白直接展示（不消耗 LLM 额度，也保证第一屏立刻有内容）
       if (d.openingLine) {
         setHistory([{ role: 'ai', text: d.openingLine, opening: true }]);
+        // 进场景就把开场白念出来 —— 孩子不用读英文
+        speech.speak(d.openingLine, 'opening');
       }
     } catch (e) {
       setError(e.message);
@@ -117,6 +152,7 @@ export default function PracticeClient({ scenarios }) {
   }
 
   function leave() {
+    speech.stop();
     setSelected(null);
     setDetail(null);
     setHistory([]);
@@ -199,6 +235,9 @@ export default function PracticeClient({ scenarios }) {
       const finalText = meta?.reply || '';
       if (finalText) {
         setHistory([...nextHistory, { role: 'ai', text: finalText }]);
+        // 回复落地后自动朗读 —— 这是语音功能的主要价值：
+        // 孩子不必去读英文长句，直接听。
+        speech.speak(finalText, `ai-${nextHistory.length}`);
       }
 
       setSessionId(meta?.sessionId ?? sessionId);
@@ -302,6 +341,20 @@ export default function PracticeClient({ scenarios }) {
           <h1 className="finish-title">{detail?.rewardTitle || 'Mission Complete!'}</h1>
           <p className="finish-sub">{detail?.title}</p>
 
+          {/* 再听一次通关播报 —— 孩子多半会想反复听自己的称号 */}
+          <button
+            className={`finish-sound ${speech.speakingId === 'finish' ? 'on' : ''}`}
+            onClick={() =>
+              speech.speak(detail?.rewardTitle || 'Mission Complete!', 'finish', {
+                force: true,
+              })
+            }
+            title="再听一遍"
+            aria-label="再听一遍"
+          >
+            {speech.speakingId === 'finish' && !speech.preparing ? '🔊 正在播放' : '🔈 再听一遍'}
+          </button>
+
           <div className="finish-missions">
             {missions.map((m) => (
               <div key={m.id} className="fm done">
@@ -341,9 +394,17 @@ export default function PracticeClient({ scenarios }) {
   // ================= 闯关界面 =================
   return (
     <div className="wrap game">
-      {/* 顶栏：返回 + 进度 */}
+      {/* 顶栏：返回 + 进度 + 声音开关 */}
       <header className="game-head">
         <button className="back" onClick={leave}>← 换个冒险</button>
+        <button
+          className={`sound ${speech.muted ? 'off' : ''}`}
+          onClick={speech.toggleMuted}
+          title={speech.muted ? '打开声音' : '关闭声音'}
+          aria-label={speech.muted ? '打开声音' : '关闭声音'}
+        >
+          {speech.muted ? '🔇' : '🔊'}
+        </button>
         <div className="prog-wrap">
           <div className="prog-bar">
             <div className="prog-fill" style={{ width: `${progress}%` }} />
@@ -414,22 +475,38 @@ export default function PracticeClient({ scenarios }) {
 
       {/* 对话流 */}
       <div className="chat">
-        {history.map((m, i) => (
-          <div key={i} className={`bubble ${m.role}`}>
-            {m.role === 'ai' &&
-              (detail?.characterAvatar ? (
-                <img className="avatar-sm img" src={detail.characterAvatar} alt={detail.characterName || 'AI'} />
-              ) : (
-                <span className="avatar-sm">
-                  {detail?.characterName ? detail.characterName[0] : 'AI'}
-                </span>
-              ))}
-            <span className="txt">
-              {m.text}
-              {m.streaming && <span className="caret" />}
-            </span>
-          </div>
-        ))}
+        {history.map((m, i) => {
+          const bubbleId = m.opening ? 'opening' : m.role === 'ai' ? `ai-${i}` : `kid-${i}`;
+          const isAi = m.role === 'ai';
+          const isSpeaking = speech.speakingId === bubbleId;
+          return (
+            <div key={i} className={`bubble ${m.role} ${isSpeaking ? 'speaking' : ''}`}>
+              {isAi &&
+                (detail?.characterAvatar ? (
+                  <img className="avatar-sm img" src={detail.characterAvatar} alt={detail.characterName || 'AI'} />
+                ) : (
+                  <span className="avatar-sm">
+                    {detail?.characterName ? detail.characterName[0] : 'AI'}
+                  </span>
+                ))}
+              <span className="txt">
+                {m.text}
+                {m.streaming && <span className="caret" />}
+              </span>
+              {/* 重听按钮：只给 AI 气泡，且不在流式中 */}
+              {isAi && !m.streaming && m.text && (
+                <button
+                  className={`replay ${isSpeaking ? 'on' : ''}`}
+                  onClick={() => speech.speak(m.text, bubbleId, { force: true })}
+                  title="再听一遍"
+                  aria-label="再听一遍"
+                >
+                  {isSpeaking && !speech.preparing ? '🔊' : '🔈'}
+                </button>
+              )}
+            </div>
+          );
+        })}
 
         {loading && (
           <div className="bubble ai">

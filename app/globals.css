@@ -594,6 +594,105 @@ body {
   .caret { animation: none; }
 }
 
+/* ============ 语音朗读（TTS）============
+ * 三个元素：顶栏静音开关(.sound) / 气泡重听(.replay) / 正在朗读(.speaking)
+ * 设计原则：语音是辅助，视觉上要"轻"——不能抢走对话内容的注意力。
+ */
+
+/* 顶栏声音开关 */
+.sound {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  width: 36px;
+  height: 32px;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: 0.16s;
+}
+.sound:hover {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+/* 已静音：降低存在感，避免孩子误以为"没声音是坏了" */
+.sound.off {
+  opacity: 0.5;
+  background: #f2f3f7;
+}
+
+/* 气泡上的重听按钮 —— 默认几乎隐形，hover 才明显 */
+.replay {
+  align-self: center;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.35;
+  transition: 0.16s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.bubble:hover .replay {
+  opacity: 0.85;
+  border-color: var(--line);
+  background: var(--panel);
+}
+.replay:hover {
+  opacity: 1;
+  border-color: var(--ai);
+  background: #e9f8f3;
+}
+/* 正在播这一条：常显 + 高亮 */
+.replay.on {
+  opacity: 1;
+  border-color: var(--ai);
+  background: #e9f8f3;
+}
+
+/* 正在朗读的气泡：左侧描边发光，配合声音给孩子"就是这条"的锚点 */
+.bubble.speaking .txt {
+  border-color: var(--ai);
+  box-shadow: 0 0 0 3px rgba(15, 157, 118, 0.12);
+}
+
+/* 结算页的再听按钮 */
+.finish-sound {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  transition: 0.16s;
+}
+.finish-sound:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+.finish-sound.on {
+  border-color: var(--ai);
+  color: var(--ai);
+  background: #e9f8f3;
+}
+
 /* 底部操作区 */
 .dock {
   position: sticky;

@@ -15,6 +15,9 @@ dist/
 # 验收截图（体积大且为本地临时产物）
 shots/
 
+# 语音合成缓存（内容寻址落盘，可随时重建；不进仓库）
+.tts-cache/
+
 # 停用的旧文件（Next 16 起 middleware 更名为 proxy）
 middleware.js.bak
 

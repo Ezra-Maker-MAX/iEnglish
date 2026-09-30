@@ -17,7 +17,7 @@ AI 扮演场景中的对方角色，全程用英语跟孩子对话。
 
 ## 当前进度
 
-**第一期 · 文字版已就绪**。先验证教学效果，再决定是否投入语音与硬件。
+**第一期 · 文字版 + TTS 语音已就绪**。先验证教学效果，再决定是否投入语音识别与硬件。
 
 | 阶段 | 状态 |
 |---|---|
@@ -28,7 +28,8 @@ AI 扮演场景中的对方角色，全程用英语跟孩子对话。
 | **场景游戏化（5 个场景全量闯关化）** | ✅ 已完成 |
 | **流式输出（首字 <1 秒）** | ✅ 已完成 |
 | **角色立绘 + 关卡图标** | ✅ 已完成 |
-| 语音（ASR/TTS） | 🟡 方案已定，见 `docs/语音方案.md` |
+| **TTS 语音朗读（自动朗读 + 重听 + 静音开关）** | ✅ 已完成（见 `docs/语音实现.md`） |
+| ASR 语音识别（听孩子说话） | 🟡 方案已定，需先实测童声识别率 |
 | ESP32 硬件 | ⬜ 待验证后启动 |
 | 开场短视频 | ❌ 已放弃（见 `docs/美术资源生成.md`） |
 
@@ -142,13 +143,14 @@ WHERE slug = 'airport-checkin';
 ```
 ienglish/
 ├─ app/
-│  ├─ practice/          孩子练习页（游戏化闯关界面）
+│  ├─ practice/          孩子练习页（游戏化闯关界面 + 语音朗读）
 │  ├─ dashboard/         家长看板
 │  ├─ admin/             配置中心
 │  ├─ api/
 │  │  ├─ chat/           对话接口（流式 SSE）
 │  │  ├─ scenarios/      场景接口
 │  │  ├─ settings/       配置读写 + 连通性测试
+│  │  ├─ tts/            语音合成（文本 → MP3）
 │  │  ├─ auth/           登录 / 登出
 │  │  └─ access/         访问口令管理
 │  ├─ layout.js
@@ -159,14 +161,19 @@ ienglish/
 │  ├─ settings.js        配置读写 + 加密 + 掩码
 │  ├─ auth.js            Cookie 鉴权
 │  ├─ llm.js             LLM 调用（流式，配置从库读）
+│  ├─ tts.js             edge-tts 合成引擎（Node 内置 WebSocket）
+│  ├─ tts-cache.js       内容寻址缓存（内存 + 磁盘）+ 并发去重
+│  ├─ use-speech.js      前端播放 hook（自动朗读 / 重听 / 静音）
 │  └─ sse.js             前端 SSE 消费
 ├─ scripts/
 │  ├─ gamify-others.js   批量游戏化 4 个场景（幂等）
 │  ├─ gamify-airport-v2.js  机场场景提示词 v2
 │  ├─ gen-assets.cjs     生成立绘 + 关卡图标
-│  └─ verify-game-ui.cjs 端到端验收（Playwright + Edge）
+│  ├─ run-sql.mjs        Turso SQL 执行器（无需 CLI）
+│  ├─ verify-game-ui.cjs 闯关流程端到端验收（Playwright + Edge）
+│  └─ verify-tts-ui.cjs  语音功能端到端验收（13 项断言）
 ├─ public/               美术资源（立绘 / 关卡图标）
-├─ docs/                 设计文档（架构 / 模型选型 / 美术 / 部署指南）
+├─ docs/                 设计文档（架构 / 模型选型 / 美术 / 语音 / 部署）
 ├─ proxy.js              边缘拦截（原 middleware.js）
 └─ package.json
 ```
@@ -236,25 +243,70 @@ curl https://<你的域名>/api/settings
 
 # 3. 测试 LLM 连通性
 #    打开 /admin 点「测试连接」，应返回耗时与模型名
+
+# 4. 测试语音（应返回 ok:true，且 node 版本 ≥ 21）
+curl https://<你的域名>/api/tts
+#    → {"ok":true,"engine":"edge-tts (via Node built-in WebSocket)","node":"v22.x"}
+
+# 5. 合成一条真实语音，确认返回 MP3（首 4 字节应为 fff3xxxx，不是 58 2d 52 65）
+curl -X POST https://<你的域名>/api/tts \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Passport, please.","scenarioSlug":"airport-checkin"}' \
+  -D - -o /tmp/t.mp3 | grep -i "x-tts"
+xxd -l 4 /tmp/t.mp3
 ```
 
-界面层还要确认两件事（`docs/部署指南.md` 第 6 节有完整清单）：
+界面层还要确认三件事（`docs/部署指南.md` 第 6 节有完整清单）：
 
 - **角色立绘显示正常**（不是首字母回退）
 - **首字 1 秒内出现**（若仍是 3 秒整段弹出，检查响应头是否漏了
   `X-Accel-Buffering: no`，或路由被改成了 edge runtime）
+- **进场景有英文朗读声**（若没声音，先看手机/电脑是否静音，
+  再确认 `/api/tts` 返回 `ok:true`）
 
-## 下一步：接入语音
+## 语音朗读（TTS）—— 已实现
 
-文字版验证通过后（孩子愿意用 + AI 教学表现符合预期），再接 ASR/TTS。
+**目标环境：Windows 电脑 / 浏览器。状态：已落地并通过端到端验收。**
 
-**方案选型已完成，见 [`docs/语音方案.md`](docs/语音方案.md)**。三条核心结论：
+孩子不必读英文长句 —— 开场白与 AI 的每句回复都会自动朗读，气泡旁可点重听，
+顶栏有静音开关。**语音任何环节失败都静默降级，绝不影响闯关。**
+
+**实现路线**：Node 22 内置 `WebSocket` 直连 edge-tts 端点，`/api/tts` 合成 MP3 字节返回。
+**不需要 Python、不需要子进程、不需要 API Key，成本为零。**
+
+三条硬约束决定了必须这么做：
+
+1. 本机 Node **无法派生任何子进程**（`EBUSY`），Vercel 也没有 Python 运行时
+   → 「调 Python edge-tts CLI」这条路彻底不通
+2. 必须 `export const runtime = 'nodejs'`（edge runtime 不支持 WebSocket）
+3. 必须用标准 WebSocket 实现 —— 自研 TLS + 手工握手时服务端**一个帧都不回**
+
+**完整技术细节见 [`docs/语音实现.md`](docs/语音实现.md)**，含：
+
+- edge-tts 逆协议全部要点（令牌算法 / SSML 规范 / 二进制帧结构 / 五个高危坑）
+- 缓存设计（内容寻址 + 三级查找 + 并发去重 + Vercel 只读降级）
+- 11 条排查手册（403 / SSML 非法 / 静默 0 帧 / 音频损坏 …）
+- 风险与兜底（非官方接口，随时可能失效 → 降级到浏览器 `SpeechSynthesis`）
+
+音色绑定见 `docs/voice.sql`（5 个场景各一个音色，统一放慢 5–12%）。
+
+```bash
+node scripts/run-sql.mjs docs/voice.sql     # 幂等，可重复执行
+```
+
+---
+
+## 下一步：接入 ASR（听孩子说话）
+
+TTS 已完成。**ASR 才是真正的难点，且必须先实测童声识别率再投入架构改造。**
+
+三条核心结论（详见 [`docs/语音方案.md`](docs/语音方案.md)）：
 
 1. **当前 LLM 平台无语音能力**（实测只有文本/图像/视频模型，`/audio/*` 路由无渠道被开通）
    → 必须外接第三方。
-2. **TTS 免费方案成熟，建议先做**：edge-tts（微软在线合成，免费无需 Key，音质接近商业级），
-   降级方案是浏览器内置 `SpeechSynthesis`（零成本零基础设施，但音色随设备变化）。
-3. **ASR 才是难点**，且必须实测童声识别率再投入：
+2. **TTS 免费方案已落地**：edge-tts（微软在线合成，免费无需 Key，音质接近商业级）。
+   兜底方案是浏览器内置 `SpeechSynthesis`（零成本零基础设施，但音色随设备变化）。
+3. **ASR 必须实测再说**：
    - 浏览器 `webkitSpeechRecognition` 虽免费，但**依赖 Google 服务，国内不可用**
    - 国内稳妥路线是**讯飞语音听写**（每日 500 次免费，对中文童声有优化）
 
